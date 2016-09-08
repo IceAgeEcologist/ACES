@@ -99,7 +99,7 @@ head(irwin_data_pct)
 head(tower_data_pct)
 ```
 
-Create new data tables with just depths, ages, and hemlock percents.  SIMON - THIS IS WHERE I'm STUCK
+Create new data tables with just depths, ages, and hemlock percents.  THIS IS WHERE I'm STUCK
 
 I'm pretty sure that I've grabbed the right depth/age information but also pretty sure that I haven't gotten the right column for hemlock percentages.  According to taxa.list, hemlock is variable 14, but a quick print shows that this isn't hemlock.  
 
