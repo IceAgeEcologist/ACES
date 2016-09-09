@@ -1,24 +1,25 @@
-# UW ACES 2016: Getting Tsuga canadensis pollen percentage data
-Jack Williams   
+# UW ACES 2016: Preparing simple pollen time series of Tsuga canadensis for time series analysis
+Jack Williams & Simon Goring
 `r format(Sys.time(), '%d %B, %Y')`  
 
 # Goal
 
-Retrieve simple time series of percent Tsuga canadensis from Tower Lake and Irwin Smith, for use in time series analysis
-
-# The `neotoma` Package
+Retrieve simple time series of percent Tsuga canadensis from Tower Lake and Irwin Smith, for use in ACES seminar.  Being passed to Tony and Steve for time series statistics module.
 
 
+# Analytical Steps
+
+## Install and add packages
 ```r
 # Uncomment this line if you haven't already installed any of these packages:
-# install.packages(c("neotoma", "analogue", "rworldmap"))
+# install.packages(c("neotoma", "analogue"))
 
-#Add the neotoma package to your programming environment 
+#Add the neotoma and analogue packages to your programming environment 
 library(neotoma)
+library("analogue")
 ```
 
-
-## Getting site data for Tower and Irwin
+## Get site data for Tower and Irwin
 
 
 ```r
@@ -28,17 +29,16 @@ tower_site <- get_site(sitename = 'Tower%')
 irwin_site <- get_site(sitename = 'Irwin Smith%')
 ```
 
-## Download the datasets and sample metadata (get_downloads)
+## Download the datasets and sample metadata
 
 `get_download` returns a list of download objects, one per dataset.  Each download object contains a suite of data for the samples in that dataset. 
-
 
 ```r
 tower_data <- get_download(tower_site)
 irwin_data <- get_download(irwin_site)
 
 ```
-2 datasets in Irwin and 8 in Tower.  Checking to see which dataset is the pollen dataset
+Both Irwin and Tower each have two datasets, one plant macrofossils, one pollen.  Checking to see which dataset is the pollen dataset
 ```r
 #dataset.meta stores metadata for each pollen sample
 #Irwin:  dataset 1 is plant macros, 2 is pollen
@@ -46,79 +46,60 @@ head(irwin_data)
 #Tower:  dataset 1 is plant macros, 2 is pollen
 head(tower_data)
 ```
+sample.meta stores metadata for each pollen sample
+taxon.list stores a list of taxa found  in the  dataset
+counts stores the the counts, presence/absence data, or percentage data for each taxon for each sample
 
+Bind the downloaded pollen datasets together into a single data frame.  'bind' is a function within the neotoma package.
 ```r
-#sample.meta stores metadata for each pollen sample
-#Accessing the second dataset to look at pollen dataset instead of macrofossil dataset
-head(irwin_data[[2]]$sample.meta)
+aces_demo_data=bind(irwin_data[[2]], tower_data[[2]])
 ```
 
+## `compile_taxa`
+
+Compile both sites to a standard list of taxa, using the 'WS64' list from Williams and Shuman 2008. The warning messages return  a number of taxa that cannot be converted using the existing data table.  Check to see which taxa have been converted by looking at the new taxon table.
+
 ```r
-#taxon.list stores a list of taxa found  in the  dataset
-head(irwin_data[[2]]$taxon.list)
+aces_poll64 <- compile_taxa(aces_demo_data, list.name = "WS64")
+aces_poll64$taxon.list[,c("compressed", "taxon.name")]
+```
+##Convert the pollen data to percentages
+
+Using tran function in analog to do percentages.  To make it clear which functions come from the `analogue` package the code uses `analogue::` before the function names.  This is just an explicit way to state the function source.  
+Also converting output to data frame and renaming Tsuga undifferentiated to Tsuga_canadensis in counts table.  At these sites, this  is T. canadensis and we are removing the space.  
+
+```r
+i_junk <- analogue::tran(x = aces_poll64[[1]]$counts, method = 'percent')
+t_junk <- analogue::tran(x = aces_poll64[[2]]$counts, method = 'percent')
+irwin_pct<-data.frame(i_junk)
+tower_pct<-data.frame(t_junk)
+irwin_pct<-rename(irwin_pct, c("Tsuga.undifferentiated"="Tsuga.canadensis"))
+tower_pct<-rename(tower_pct, c("Tsuga.undifferentiated"="Tsuga.canadensis"))
 ```
 
+Create new data tables with just depths, ages, and hemlock percents. 
+Rename column headers
+
 ```r
-#counts stores the the counts, presence/absence data, or percentage data for each taxon for each sample
-head(irwin_data[[2]]$counts)
-head(tower_data[[2]]$counts)
+irwin_hemlock<-data.frame(aces_poll64[[1]]$sample.meta$depth,aces_poll64[[1]]$sample.meta$age,irwin_pct$Tsuga.canadensis)
+tower_hemlock<-data.frame(aces_poll64[[2]]$sample.meta$depth,aces_poll64[[2]]$sample.meta$age,tower_pct$Tsuga.canadensis)
+#Note that 'names' command assumes position of columns.
+names(irwin_hemlock)[1]<-"Depth.cm"
+names(irwin_hemlock)[2]<-"Age.yrB1950"
+names(irwin_hemlock)[3]<-"Tsuga.canadensis"
+names(tower_hemlock)[1]<-"Depth.cm"
+names(tower_hemlock)[2]<-"Age.yrB1950"
+names(tower_hemlock)[3]<-"Tsuga.canadensis"
 ```
-
-## Helper functions
-
-### `compile_taxa`
-
-The level of taxonomic resolution can vary among analysts.  Often for multi-site analyses it is helpful to aggregate to a common taxonomic resolution. The `compile_taxa` function in `neotoma` will do this.  To help support rapid prototyping, `neotoma` includes a few pre-built taxonomic lists, so far mostly for North American pollen types. **However**, the function also supports the use of a custom-built `data.frame` for aligning taxonomies.  Because new taxa are added to Neotoma regularly (based on analyst identification), it is worthwhile to check the assignments performed by the `compile_taxa` function, and to build your own  compilation table.
-
-
+Plot data to confirm
 ```r
-#The 'WS64' list derives from Williams and Shuman 2008
-#Accessing second dataset to look at pollen dataset instead of macrofossil dataset
-irwin_data_pollen <-irwin_data[[2]]
-irwin_data_poll64 <- compile_taxa(irwin_data_pollen, list.name = "WS64")
-head(irwin_data_poll64)
-```
-
-You'll notice that warning messages return  a number of taxa that cannot be converted using the existing data table.  Are these taxa important?  They may be important for you.  Check to see which taxa have been converted by looking at the new taxon table:
-
-
-```r
-irwin_data_poll64$taxon.list[,c("compressed", "taxon.name")]
-```
-
-### Plotting
-
-There are several options for plotting stratigraphic data in R.  The `rioja` package [@rioja_package] and `analogue` [@analogue_package] each have methods, and other possibilities exist.  Here we will show simple plotting using the `analogue` package. To make it clear which functions come from the `analogue` package I will use `analogue::` before the function names.  This is just an explicit way to state the function source.  If you choose not to do this you will not encounter any problems unless multiple packages have similarly named functions.
-
-Convert the pollen data to percentages
-```r
-library("analogue")
-irwin_data_pct <- analogue::tran(x = irwin_data_poll64$counts, method = 'percent')
-tower_data_pct <- analogue::tran(x = tower_data_poll64$counts, method = 'percent')
-head(irwin_data_pct)
-head(tower_data_pct)
-```
-
-Create new data tables with just depths, ages, and hemlock percents.  THIS IS WHERE I'm STUCK
-
-I'm pretty sure that I've grabbed the right depth/age information but also pretty sure that I haven't gotten the right column for hemlock percentages.  According to taxa.list, hemlock is variable 14, but a quick print shows that this isn't hemlock.  
-
-There has to be a better way of doing this...
-
-```r
-irwin_hemlock<-data.frame(irwin_data_poll64$sample.meta$depth,irwin_data_poll64$sample.meta$age,irwin_data_pct[,c(14)])
-tower_hemlock<-data.frame(tower_data_poll64$sample.meta$depth,tower_data_poll64$sample.meta$age,tower_data_pct[,c(14)])
-
+plot(irwin_hemlock$Tsuga.canadensis,irwin_hemlock$Age.yrB1950)
+plot(tower_hemlock$Tsuga.canadensis,tower_hemlock$Age.yrB1950)
 ```
 
 Saving data to an .RData file for sharing and re-use
 
 ```r
-save(kettle_site,spicer_site,tower_site,kettle_data,tower_data,file="neotoma_3sites.RData")
+save(irwin_hemlock,tower_hemlock,file="hemlock_irwin_tower.RData")
 save.image()
 ```
-# Conclusions
-
-The `neotoma` package, and the Neotoma Paleoecological Database provide a powerful tool for data analysis and data manipulation.  These data tools can support exploratory data analysis, teaching opportunities, and research projects across disciplines.  More information about using Neotoma is available from the database's [Manual](https://neotoma-manual.readthedocs.io/en/latest/), and from the `neotoma` package [paper](http://www.openquaternary.com/articles/10.5334/oq.ab/).  The 'neotoma'  source code is available at [GitHub](https://github.com/ropensci/neotoma)
-
-# References
